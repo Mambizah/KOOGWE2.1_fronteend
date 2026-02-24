@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.koogwe.app"          // ✅ changé de com.example.koogwe
-    compileSdk = 34                        // ✅ forcé à 34 (au lieu de flutter.compileSdkVersion)
+    compileSdk = 36                     // ✅ forcé à 34 (au lieu de flutter.compileSdkVersion)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -22,7 +22,7 @@ android {
     defaultConfig {
         applicationId = "com.koogwe.app"  // ✅ changé de com.example.koogwe
         minSdk = 21                        // ✅ forcé à 21 (requis pour package camera)
-        targetSdk = 34                     // ✅ forcé à 34
+        targetSdk = 36                     // ✅ forcé à 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
