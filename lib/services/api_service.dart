@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String _railwayUrl = 'https://web-production-13628.up.railway.app';
+  static const String _railwayUrl = 'https://web-production-5edc5.up.railway.app';
 
   static String get baseUrl {
     if (kDebugMode && defaultTargetPlatform == TargetPlatform.android) {
