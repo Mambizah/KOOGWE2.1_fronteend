@@ -1,0 +1,84 @@
+name: koogwe
+description: Application de transport premium KOOGWE - Lomé, Togo
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Navigation
+  go_router: ^13.0.0
+  
+  # State Management
+  provider: ^6.1.1
+  
+  # UI & Icons
+  cupertino_icons: ^1.0.6
+  flutter_svg: ^2.0.10+1
+  google_fonts: ^6.2.1
+  
+  # Maps & Location
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+  geolocator: ^11.0.0
+  geocoding: ^3.0.0
+  
+  # Network
+  dio: ^5.4.0
+  
+  # WebSocket Socket.io pour le temps réel
+  socket_io_client: ^2.0.3+1
+  
+  # Utils
+  intl: ^0.19.0
+  shared_preferences: ^2.2.3
+  image_picker: ^1.1.2
+  
+  # Animations
+  lottie: ^3.1.0
+  shimmer: ^3.0.0
+  
+  # OTP / Phone
+  pin_code_fields: ^8.0.1
+  
+  # Phone calls & URLs
+  url_launcher: ^6.2.6
+  
+  # HTTP for direct API calls (documents upload)
+  http: ^1.2.0
+  
+  # Camera for facial verification
+  camera: ^0.10.5+9
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+  # ✅ Génération automatique de l'icône de l'app
+  flutter_launcher_icons: ^0.13.1
+
+# ✅ Configuration de l'icône launcher
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png"
+  min_sdk_android: 21
+
+  # Icône adaptative Android (Android 8+)
+  adaptive_icon_background: "#0A0E2E"        # Bleu nuit KOOGWE
+  adaptive_icon_foreground: "assets/images/logo.png"
+
+  # iOS
+  remove_alpha_ios: true                     # iOS n'accepte pas la transparence
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/logo.png
