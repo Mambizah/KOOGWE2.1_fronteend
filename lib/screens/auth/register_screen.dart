@@ -77,10 +77,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ));
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? 'Erreur lors de l\'inscription';
-      setState(() => _error = msg is List ? msg.join(', ') : msg.toString());
+      // ✅ DEBUG : Affiche le code HTTP + le vrai message du backend
+      final statusCode = e.response?.statusCode ?? 0;
+      final msg = e.response?.data?['message'] ??
+                  e.response?.data?['error'] ??
+                  'Erreur lors de l\'inscription';
+      setState(() => _error = '[$statusCode] ${msg is List ? msg.join(', ') : msg.toString()}');
     } catch (e) {
-      setState(() => _error = 'Erreur de connexion au serveur');
+      // ✅ DEBUG : Affiche l'erreur réelle au lieu de masquer
+      setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -272,12 +277,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Icon(Icons.error_outline, color: AppColors.error, size: 18),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(_error!,
-                              style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.error)),
+                            child: Text(
+                              _error!,
+                              style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.error),
+                            ),
                           ),
                         ],
                       ),
