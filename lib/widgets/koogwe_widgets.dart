@@ -296,7 +296,7 @@ class MapPlaceholder extends StatefulWidget {
 }
 
 class _MapPlaceholderState extends State<MapPlaceholder> {
-  LatLng _userPosition = const LatLng(6.1375, 1.2125); // Lomé centre
+  LatLng? _userPosition; // null jusqu'à ce que le GPS réponde
   final MapController _mapController = MapController();
   bool _hasPosition = false;
 
@@ -305,6 +305,10 @@ class _MapPlaceholderState extends State<MapPlaceholder> {
     super.initState();
     _getLocation();
   }
+
+  // Position initiale de la carte — monde entier si GPS pas encore disponible
+  LatLng get _mapCenter => _userPosition ?? const LatLng(14.0, 0.0);
+  double get _mapZoom => _userPosition != null ? 15.0 : 2.0;
 
   Future<void> _getLocation() async {
     try {
@@ -325,6 +329,10 @@ class _MapPlaceholderState extends State<MapPlaceholder> {
           _userPosition = LatLng(pos.latitude, pos.longitude);
           _hasPosition = true;
         });
+        // Centrer la carte sur la vraie position
+        try {
+          _mapController.move(_userPosition!, 15.0);
+        } catch (_) {}
       }
     } catch (_) {}
   }
@@ -349,12 +357,43 @@ class _MapPlaceholderState extends State<MapPlaceholder> {
   Widget build(BuildContext context) {
     final markers = <Marker>[];
 
-    // Marqueur position utilisateur
-    markers.add(Marker(
-      point: _userPosition,
-      width: 48, height: 48,
-      child: const Icon(Icons.my_location, color: AppColors.primary, size: 32),
-    ));
+    // ✅ Point bleu pulsant (style Google Maps) — seulement si GPS disponible
+    if (_userPosition != null) {
+      markers.add(Marker(
+        point: _userPosition!,
+        width: 56, height: 56,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Halo extérieur
+            Container(
+              width: 56, height: 56,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2B40F0).withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+            ),
+            // Anneau intermédiaire
+            Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 6)],
+              ),
+            ),
+            // Point central bleu
+            Container(
+              width: 18, height: 18,
+              decoration: const BoxDecoration(
+                color: Color(0xFF2B40F0),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        ),
+      ));
+    }
 
     // Marqueur chauffeur temps réel (si disponible)
     if (widget.currentLat != null && widget.currentLng != null) {
@@ -377,8 +416,8 @@ class _MapPlaceholderState extends State<MapPlaceholder> {
       child: FlutterMap(
         mapController: _mapController,
         options: MapOptions(
-          initialCenter: _userPosition,
-          initialZoom: 15,
+          initialCenter: _mapCenter,
+          initialZoom: _mapZoom,
           interactionOptions: const InteractionOptions(
             flags: InteractiveFlag.all,
           ),
