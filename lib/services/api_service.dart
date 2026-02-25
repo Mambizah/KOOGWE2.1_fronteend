@@ -5,19 +5,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
   static const String _railwayUrl = 'https://web-production-5edc5.up.railway.app';
 
-  static String get baseUrl {
-    if (kDebugMode && defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:3000';
-    }
-    return _railwayUrl;
-  }
+  // ✅ FIX CRITIQUE : Toujours Railway, même en debug sur téléphone physique
+  // L'ancienne condition kDebugMode envoyait vers 10.0.2.2:3000 (émulateur) → timeout
+  static String get baseUrl => _railwayUrl;
 
-  // ✅ FIX : Timeouts augmentés (Railway free tier peut mettre 30s+ au 1er réveil)
   static final Dio _dio = Dio(BaseOptions(
     baseUrl: baseUrl,
-    connectTimeout: const Duration(seconds: 45),   // ← était 15
-    receiveTimeout: const Duration(seconds: 45),   // ← était 15
-    sendTimeout: const Duration(seconds: 45),      // ← nouveau
+    connectTimeout: const Duration(seconds: 45),
+    receiveTimeout: const Duration(seconds: 45),
+    sendTimeout: const Duration(seconds: 45),
     headers: {'Content-Type': 'application/json'},
   ));
 
@@ -45,7 +41,6 @@ class ApiService {
         handler.next(e);
       },
       onRequest: (options, handler) {
-        // ✅ Log aussi en release pour débugger
         print('📡 ${options.method} ${options.uri}');
         handler.next(options);
       },
