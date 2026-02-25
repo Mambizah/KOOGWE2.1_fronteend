@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:koogwe/screens/driver/vehicle_registration_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/koogwe_widgets.dart';
 import '../../services/api_service.dart';
-import '../../services/socket_service.dart';
 import '../../services/i18n_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/socket_service.dart';
 import '../passenger/home_screen.dart';
-import '../driver/vehicle_registration_screen.dart';
+import '../driver/driver_facial_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   final bool isPassenger;
@@ -24,19 +25,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
 
-  String _selectedCountry = 'Togo';
-  String _selectedDialCode = '+228';
+  // ignore: unused_field
+  String _selectedCountry = 'Guyane Française';
+  String _selectedDialCode = '+594';
   bool _loading = false;
   String? _error;
   int _step = 0;
 
   static const List<Map<String, String>> _countries = [
-    {'name': 'Togo', 'code': '+228', 'flag': '🇹🇬'},
-    {'name': 'Côte d\'Ivoire', 'code': '+225', 'flag': '🇨🇮'},
-    {'name': 'Ghana', 'code': '+233', 'flag': '🇬🇭'},
-    {'name': 'Bénin', 'code': '+229', 'flag': '🇧🇯'},
-    {'name': 'Sénégal', 'code': '+221', 'flag': '🇸🇳'},
-    {'name': 'France', 'code': '+33', 'flag': '🇫🇷'},
+    {'name': 'Guyane Française', 'code': '+594', 'flag': '🇬🇫'},
+    {'name': 'France',           'code': '+33',  'flag': '🇫🇷'},
+    {'name': 'Martinique',       'code': '+596', 'flag': '🇲🇶'},
+    {'name': 'Guadeloupe',       'code': '+590', 'flag': '🇬🇵'},
+    {'name': 'Brésil',           'code': '+55',  'flag': '🇧🇷'},
+    {'name': 'Suriname',         'code': '+597', 'flag': '🇸🇷'},
+    {'name': 'Venezuela',        'code': '+58',  'flag': '🇻🇪'},
+    {'name': 'Colombie',         'code': '+57',  'flag': '🇨🇴'},
   ];
 
   @override
@@ -70,36 +74,76 @@ class _RegisterScreenState extends State<RegisterScreen> {
         role: widget.isPassenger ? 'PASSENGER' : 'DRIVER',
       );
 
-      // ✅ Le backend retourne directement un token — sauvegarder et naviguer
+      // ✅ Compatible avec backend v1 (sans token) et v2 (avec token)
       if (result['access_token'] != null) {
+        // Nouveau backend — token retourné directement
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', result['access_token']);
         ApiService.setToken(result['access_token']);
-
         if (result['user'] != null) {
           await AuthService.saveUserFromMap(result['user'] as Map<String, dynamic>);
         }
-
         await SocketService.connect();
-
         if (!mounted) return;
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (_) => widget.isPassenger
                 ? const PassengerHomeScreen()
-                : const VehicleRegistrationScreen(),
+                : const DriverFacialScreen(),
           ),
           (route) => false,
         );
+      } else if (result['email'] != null) {
+        // Ancien backend — pas de token, on fait un login automatique
+        if (!mounted) return;
+        try {
+          final loginResult = await AuthService.login(
+            _emailCtrl.text.trim(),
+            _passCtrl.text,
+          );
+          if (loginResult['access_token'] != null) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('auth_token', loginResult['access_token']);
+            ApiService.setToken(loginResult['access_token']);
+            if (loginResult['user'] != null) {
+              await AuthService.saveUserFromMap(loginResult['user'] as Map<String, dynamic>);
+            }
+            await SocketService.connect();
+            if (!mounted) return;
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (_) => widget.isPassenger
+                    ? const PassengerHomeScreen()
+                    : const VehicleRegistrationScreen(),
+              ),
+              (route) => false,
+            );
+          }
+        } catch (_) {
+          if (!mounted) return;
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (_) => widget.isPassenger
+                  ? const PassengerHomeScreen()
+                  : const VehicleRegistrationScreen(),
+            ),
+            (route) => false,
+          );
+        }
+      } else {
+        setState(() => _error = 'Réponse inattendue du serveur');
       }
     } on DioException catch (e) {
       final statusCode = e.response?.statusCode ?? 0;
+      final dioType = e.type.name;
       final msg = e.response?.data?['message'] ??
                   e.response?.data?['error'] ??
                   e.message ??
                   loc.t('network_error');
-      setState(() => _error = '[$statusCode] ${msg is List ? msg.join(', ') : msg.toString()}');
+      setState(() => _error = '[$statusCode] $dioType\n${msg is List ? msg.join(', ') : msg.toString()}');
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -208,6 +252,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textLight, height: 1.5),
                   ),
                   const SizedBox(height: 28),
+
                   KoogweInput(
                     label: loc.t('full_name'),
                     hint: loc.t('name_hint'),
@@ -215,6 +260,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _nameCtrl,
                   ),
                   const SizedBox(height: 16),
+
                   KoogweInput(
                     label: loc.t('email'),
                     hint: loc.t('email_hint'),
@@ -223,6 +269,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     keyboardType: TextInputType.emailAddress,
                   ),
                   const SizedBox(height: 16),
+
+                  // ── Indicatif + Téléphone ──────────────────────────────
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -257,7 +305,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               keyboardType: TextInputType.phone,
                               style: GoogleFonts.dmSans(fontSize: 15, color: AppColors.textDark),
                               decoration: InputDecoration(
-                                hintText: '90 00 00 00',
+                                hintText: '06 94 00 00 00',
                                 hintStyle: GoogleFonts.dmSans(color: AppColors.textHint),
                               ),
                             ),
@@ -267,6 +315,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
+
                   KoogweInput(
                     label: loc.t('password'),
                     hint: '••••••••',
@@ -274,6 +323,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     prefixIcon: Icons.lock_outline,
                     controller: _passCtrl,
                   ),
+
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Container(
@@ -287,13 +337,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         children: [
                           const Icon(Icons.error_outline, color: AppColors.error, size: 18),
                           const SizedBox(width: 8),
-                          Expanded(child: Text(_error!,
-                            style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.error))),
+                          Expanded(
+                            child: Text(_error!,
+                              style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.error)),
+                          ),
                         ],
                       ),
                     ),
                   ],
+
                   const Spacer(),
+
                   KoogweButton(
                     label: loc.t('register_btn'),
                     onPressed: _loading ? null : _register,
@@ -383,8 +437,10 @@ class _RoleCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textDark)),
-                  Text(desc, style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textLight)),
+                  Text(title,
+                    style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textDark)),
+                  Text(desc,
+                    style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textLight)),
                 ],
               ),
             ),
