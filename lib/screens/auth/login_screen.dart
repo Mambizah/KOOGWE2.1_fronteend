@@ -5,6 +5,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/koogwe_widgets.dart';
 import '../../services/api_service.dart';
 import '../../services/socket_service.dart';
+import '../../services/i18n_service.dart';
 import 'register_screen.dart';
 import '../passenger/home_screen.dart';
 import '../driver/driver_home_screen.dart';
@@ -30,8 +31,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
+    FocusScope.of(context).unfocus();
+
     if (_emailCtrl.text.isEmpty || _passCtrl.text.isEmpty) {
-      setState(() => _error = 'Veuillez remplir tous les champs');
+      setState(() => _error = loc.t('fill_fields'));
       return;
     }
 
@@ -41,7 +44,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final data = await AuthService.login(_emailCtrl.text.trim(), _passCtrl.text);
       final role = data['user']['role'] as String;
 
-      // ✅ FIX BUG #2 : await la connexion socket avant navigation
       await SocketService.connect();
 
       if (!mounted) return;
@@ -54,10 +56,17 @@ class _LoginScreenState extends State<LoginScreen> {
         (route) => false,
       );
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? 'Connexion impossible. Vérifiez vos identifiants.';
-      setState(() => _error = msg is List ? msg.join(', ') : msg.toString());
+      final statusCode = e.response?.statusCode ?? 0;
+      if (statusCode == 0) {
+        setState(() => _error = loc.t('network_error'));
+      } else if (statusCode == 401 || statusCode == 400) {
+        setState(() => _error = loc.t('login_error'));
+      } else {
+        final msg = e.response?.data?['message'] ?? loc.t('login_error');
+        setState(() => _error = msg is List ? msg.join(', ') : msg.toString());
+      }
     } catch (e) {
-      setState(() => _error = 'Erreur de connexion au serveur');
+      setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -67,9 +76,13 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.only(
+            left: 24, right: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
           child: Column(
             children: [
               const SizedBox(height: 16),
@@ -88,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const Spacer(),
-                  Text('Connexion', style: GoogleFonts.dmSans(
+                  Text(loc.t('login_title'), style: GoogleFonts.dmSans(
                     fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textDark,
                   )),
                   const Spacer(),
@@ -105,26 +118,26 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: const Icon(Icons.directions_car_filled, color: AppColors.primary, size: 36),
               ),
               const SizedBox(height: 24),
-              Text('Bon retour !', style: GoogleFonts.dmSans(
+              Text('${loc.t('welcome_name')} !', style: GoogleFonts.dmSans(
                 fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.textDark,
               )),
               const SizedBox(height: 6),
               Text(
-                'Entrez vos informations pour accéder\nà votre compte KOOGWE',
+                loc.t('login_subtitle2'),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textLight, height: 1.5),
               ),
               const SizedBox(height: 36),
               KoogweInput(
-                label: 'Email',
-                hint: 'nom@exemple.com',
+                label: loc.t('email'),
+                hint: loc.t('email_hint'),
                 prefixIcon: Icons.mail_outline,
                 controller: _emailCtrl,
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 20),
               KoogweInput(
-                label: 'Mot de passe',
+                label: loc.t('password'),
                 hint: '••••••••',
                 obscure: true,
                 prefixIcon: Icons.lock_outline,
@@ -141,6 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     border: Border.all(color: AppColors.error.withOpacity(0.3)),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Icon(Icons.error_outline, color: AppColors.error, size: 18),
                       const SizedBox(width: 8),
@@ -153,8 +167,8 @@ class _LoginScreenState extends State<LoginScreen> {
               ],
               const SizedBox(height: 28),
               KoogweButton(
-                label: 'Se connecter',
-                onPressed: _login,
+                label: loc.t('sign_in'),
+                onPressed: _loading ? null : _login,
                 loading: _loading,
               ),
               const SizedBox(height: 32),
@@ -165,11 +179,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: RichText(
                   text: TextSpan(
-                    text: 'Nouveau sur KOOGWE ? ',
+                    text: loc.t('new_on_koogwe'),
                     style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textLight),
                     children: [
                       TextSpan(
-                        text: 'Créer un compte',
+                        text: loc.t('create_account'),
                         style: GoogleFonts.dmSans(
                           fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primary,
                         ),

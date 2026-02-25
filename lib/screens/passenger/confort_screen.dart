@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dio/dio.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/koogwe_widgets.dart';
 import '../../services/api_service.dart';
@@ -18,7 +18,8 @@ class ConfortScreen extends StatefulWidget {
 
 class _ConfortScreenState extends State<ConfortScreen> {
   int _selectedVehicle = 0;
-  final Set<String> _selectedOptions = {'Clim'};
+  // ✅ Par défaut aucune option sélectionnée (le prix de base suffit)
+  final Set<String> _selectedOptions = {};
   int _selectedPayment = 0;
   bool _loading = false;
   String? _error;
@@ -36,16 +37,17 @@ class _ConfortScreenState extends State<ConfortScreen> {
   Timer? _searchDebounce;
 
   final List<_Vehicle> _vehicles = const [
-    _Vehicle(name: 'Moto', apiType: 'MOTO', basePrice: 1500, eta: '3 min', seats: 1, desc: 'Rapide et économique'),
-    _Vehicle(name: 'Taxi', apiType: 'ECO', basePrice: 2500, eta: '5 min', seats: 4, desc: 'Confortable et abordable'),
-    _Vehicle(name: 'Confort', apiType: 'CONFORT', basePrice: 4500, eta: '8 min', seats: 4, desc: 'Véhicule premium'),
+    _Vehicle(name: 'Moto', apiType: 'MOTO', basePrice: 500, eta: '3 min', seats: 1, desc: 'Rapide et économique'),
+    _Vehicle(name: 'Taxi', apiType: 'ECO', basePrice: 800, eta: '5 min', seats: 4, desc: 'Confortable et abordable'),
+    _Vehicle(name: 'Confort', apiType: 'CONFORT', basePrice: 1500, eta: '8 min', seats: 4, desc: 'Véhicule premium'),
   ];
 
+  // ✅ Options avec prix individuels clairement définis
   final List<_ComfortOption> _options = const [
-    _ComfortOption(id: 'Clim', icon: Icons.ac_unit, label: 'Clim'),
-    _ComfortOption(id: 'WiFi', icon: Icons.wifi, label: 'Wi-Fi'),
-    _ComfortOption(id: 'Musique', icon: Icons.music_note, label: 'Musique'),
-    _ComfortOption(id: 'Silence', icon: Icons.volume_off, label: 'Silencieux'),
+    _ComfortOption(id: 'Clim', icon: Icons.ac_unit, label: 'Clim', price: 500),
+    _ComfortOption(id: 'WiFi', icon: Icons.wifi, label: 'Wi-Fi', price: 300),
+    _ComfortOption(id: 'Musique', icon: Icons.music_note, label: 'Musique', price: 200),
+    _ComfortOption(id: 'Silence', icon: Icons.volume_off, label: 'Silencieux', price: 0),
   ];
 
   @override
@@ -73,7 +75,6 @@ class _ConfortScreenState extends State<ConfortScreen> {
         _gpsLoading = false;
       });
     } else {
-      // Fallback Lomé centre
       _originLat = LocationService.defaultLat;
       _originLng = LocationService.defaultLng;
       if (mounted) setState(() {
@@ -102,7 +103,6 @@ class _ConfortScreenState extends State<ConfortScreen> {
     _destCtrl.text = place.displayName;
     _suggestions = [];
 
-    // Calculer la distance
     if (_originLat != null && _originLng != null) {
       final dist = await LocationService.getDistanceKm(
         _originLat!, _originLng!, place.lat, place.lng,
@@ -112,12 +112,18 @@ class _ConfortScreenState extends State<ConfortScreen> {
     if (mounted) setState(() {});
   }
 
-  // Prix calculé en FCFA selon la distance
+  // ✅ FIX PRIX : 1km = 100 FCFA + options individuelles
+  // Clim = +500 | WiFi = +300 | Musique = +200 | Silence = gratuit
   double get _totalPrice {
     final base = _vehicles[_selectedVehicle].basePrice.toDouble();
-    final kmSurcharge = _distanceKm > 1 ? (_distanceKm - 1) * 200 : 0.0;
-    final extras = _selectedOptions.length > 1 ? (_selectedOptions.length - 1) * 300.0 : 0.0;
-    return (base + kmSurcharge + extras).roundToDouble();
+    final kmPrice = _distanceKm * 100; // ← 1 km = 100 FCFA
+    double optionsPrice = 0;
+    for (final opt in _options) {
+      if (_selectedOptions.contains(opt.id)) {
+        optionsPrice += opt.price;
+      }
+    }
+    return (base + kmPrice + optionsPrice).roundToDouble();
   }
 
   bool get _canOrder => _originLat != null && _destLat != null && !_loading;
@@ -127,6 +133,17 @@ class _ConfortScreenState extends State<ConfortScreen> {
       setState(() => _error = 'Sélectionnez une destination');
       return;
     }
+
+    // ✅ FIX DÉCONNEXION : Vérifier le token AVANT d'envoyer la requête
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    if (token == null || token.isEmpty) {
+      setState(() => _error = 'Session expirée. Veuillez vous reconnecter.');
+      return;
+    }
+    // S'assurer que le token est dans les headers Dio
+    ApiService.setToken(token);
+
     setState(() { _loading = true; _error = null; });
 
     try {
@@ -150,10 +167,15 @@ class _ConfortScreenState extends State<ConfortScreen> {
         ),
       ));
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? 'Impossible de créer la course';
-      setState(() => _error = msg.toString());
+      final statusCode = e.response?.statusCode ?? 0;
+      if (statusCode == 401) {
+        setState(() => _error = 'Session expirée. Veuillez vous reconnecter.');
+      } else {
+        final msg = e.response?.data?['message'] ?? 'Impossible de créer la course';
+        setState(() => _error = '[$statusCode] ${msg.toString()}');
+      }
     } catch (e) {
-      setState(() => _error = 'Erreur de connexion au serveur');
+      setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -183,7 +205,7 @@ class _ConfortScreenState extends State<ConfortScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ─── Adresses ───────────────────────────────────────────
+                  // ─── Adresses ────────────────────────────────────────────
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -247,7 +269,7 @@ class _ConfortScreenState extends State<ConfortScreen> {
                     ),
                   ),
 
-                  // ─── Suggestions ────────────────────────────────────────
+                  // ─── Suggestions ─────────────────────────────────────────
                   if (_suggestions.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Container(
@@ -272,6 +294,7 @@ class _ConfortScreenState extends State<ConfortScreen> {
                     ),
                   ],
 
+                  // ✅ Distance + détail du prix
                   if (_distanceKm > 0) ...[
                     const SizedBox(height: 8),
                     Container(
@@ -281,7 +304,10 @@ class _ConfortScreenState extends State<ConfortScreen> {
                         children: [
                           const Icon(Icons.straighten, size: 14, color: AppColors.success),
                           const SizedBox(width: 6),
-                          Text('Distance estimée : ${_distanceKm.toStringAsFixed(1)} km', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.success, fontWeight: FontWeight.w500)),
+                          Text(
+                            '${_distanceKm.toStringAsFixed(1)} km × 100 FCFA = ${(_distanceKm * 100).toStringAsFixed(0)} FCFA',
+                            style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.success, fontWeight: FontWeight.w500),
+                          ),
                         ],
                       ),
                     ),
@@ -289,7 +315,7 @@ class _ConfortScreenState extends State<ConfortScreen> {
 
                   const SizedBox(height: 24),
 
-                  // ─── Type de véhicule ────────────────────────────────────
+                  // ─── Type de véhicule ─────────────────────────────────────
                   Text('TYPE DE VÉHICULE', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textLight, letterSpacing: 1)),
                   const SizedBox(height: 12),
                   SizedBox(
@@ -308,7 +334,22 @@ class _ConfortScreenState extends State<ConfortScreen> {
 
                   const SizedBox(height: 24),
 
-                  Text('OPTIONS DE CONFORT', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textLight, letterSpacing: 1)),
+                  // ─── Options de confort avec prix ─────────────────────────
+                  Row(
+                    children: [
+                      Text('OPTIONS DE CONFORT', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textLight, letterSpacing: 1)),
+                      const Spacer(),
+                      if (_selectedOptions.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(8)),
+                          child: Text(
+                            '+${_options.where((o) => _selectedOptions.contains(o.id)).fold(0, (s, o) => s + o.price)} FCFA',
+                            style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 12),
                   GridView.count(
                     shrinkWrap: true,
@@ -344,7 +385,7 @@ class _ConfortScreenState extends State<ConfortScreen> {
             ),
           ),
 
-          // ─── Bottom bar ────────────────────────────────────────────────
+          // ─── Bottom bar ─────────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
             decoration: const BoxDecoration(
@@ -369,6 +410,12 @@ class _ConfortScreenState extends State<ConfortScreen> {
                         children: [
                           Text('TOTAL ESTIMÉ', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textLight, letterSpacing: 0.8)),
                           Text('${_totalPrice.toStringAsFixed(0)} FCFA', style: GoogleFonts.dmSans(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textDark)),
+                          // ✅ Détail du prix en petit
+                          if (_distanceKm > 0)
+                            Text(
+                              'Base ${_vehicles[_selectedVehicle].basePrice} + ${(_distanceKm * 100).toStringAsFixed(0)} km',
+                              style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textLight),
+                            ),
                         ],
                       ),
                       const SizedBox(width: 16),
@@ -460,7 +507,8 @@ class _VehicleCard extends StatelessWidget {
 class _ComfortOption {
   final String id, label;
   final IconData icon;
-  const _ComfortOption({required this.id, required this.icon, required this.label});
+  final int price; // ✅ Prix individuel de l'option
+  const _ComfortOption({required this.id, required this.icon, required this.label, required this.price});
 }
 
 class _ComfortCard extends StatelessWidget {
@@ -482,9 +530,15 @@ class _ComfortCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(option.icon, color: selected ? AppColors.primary : AppColors.textMedium, size: 28),
-            const SizedBox(height: 8),
+            Icon(option.icon, color: selected ? AppColors.primary : AppColors.textMedium, size: 24),
+            const SizedBox(height: 4),
             Text(option.label, style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500, color: selected ? AppColors.primary : AppColors.textMedium)),
+            // ✅ Afficher le prix de l'option
+            if (option.price > 0)
+              Text(
+                '+${option.price} FCFA',
+                style: GoogleFonts.dmSans(fontSize: 11, color: selected ? AppColors.primary : AppColors.textLight),
+              ),
           ],
         ),
       ),

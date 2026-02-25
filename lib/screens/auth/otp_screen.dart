@@ -7,8 +7,8 @@ import '../../theme/app_theme.dart';
 import '../../widgets/koogwe_widgets.dart';
 import '../../services/api_service.dart';
 import '../../services/socket_service.dart';
+import '../../services/i18n_service.dart';
 import '../passenger/home_screen.dart';
-import '../driver/driver_home_screen.dart';
 import '../driver/vehicle_registration_screen.dart';
 
 class OtpScreen extends StatefulWidget {
@@ -26,6 +26,7 @@ class _OtpScreenState extends State<OtpScreen> {
   bool _loading = false;
   String? _error;
   int _countdown = 59;
+  bool _resending = false;
 
   @override
   void initState() {
@@ -50,37 +51,59 @@ class _OtpScreenState extends State<OtpScreen> {
     setState(() { _loading = true; _error = null; });
 
     try {
-      // Appel API vérification OTP
       final result = await AuthService.verifyOtp(widget.email, code);
 
-      // ✅ FIX : Sauvegarder les infos utilisateur après vérification OTP
       if (result['user'] != null) {
-        final user = result['user'] as Map<String, dynamic>;
-        await AuthService.saveUserFromMap(user);
+        await AuthService.saveUserFromMap(result['user'] as Map<String, dynamic>);
       }
 
-      // ✅ FIX : await connect() pour avoir le token avant connexion socket
+      // ✅ Vérifier qu'on a bien un token avant de continuer
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      if (token == null || token.isEmpty) {
+        setState(() => _error = loc.t('verify_failed'));
+        return;
+      }
+
       await SocketService.connect();
 
       if (!mounted) return;
       _navigateHome();
+
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? 'Code incorrect ou expiré';
-      setState(() => _error = msg.toString());
-    } catch (e) {
-      // ✅ FIX BUG #5 : En mode dev uniquement (compte déjà activé)
-      // Ne connecter socket QUE si on a vraiment un token
-      final prefs = await SharedPreferences.getInstance();
-      final hasToken = prefs.getString('auth_token') != null;
-      if (hasToken) {
-        await SocketService.connect();
-        if (!mounted) return;
-        _navigateHome();
+      final statusCode = e.response?.statusCode ?? 0;
+      if (statusCode == 0) {
+        setState(() => _error = loc.t('network_error'));
+      } else if (statusCode == 400 || statusCode == 401) {
+        setState(() => _error = loc.t('incorrect_code'));
       } else {
-        if (mounted) setState(() => _error = 'Erreur de vérification. Réessayez.');
+        final msg = e.response?.data?['message'] ?? loc.t('incorrect_code');
+        setState(() => _error = msg.toString());
       }
+    } catch (e) {
+      // ✅ PLUS de bypass : on affiche l'erreur, on ne navigue JAMAIS sans token
+      setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _resendCode() async {
+    setState(() { _resending = true; _error = null; });
+    try {
+      await ApiService.dio.post('/auth/resend-otp', data: {'email': widget.email});
+    } catch (_) {
+      // Si l'endpoint n'existe pas, on reset juste le countdown
+    } finally {
+      if (mounted) {
+        setState(() {
+          _countdown = 59;
+          _resending = false;
+        });
+        _startCountdown();
+        for (final c in _ctrl) c.clear();
+        _focus[0].requestFocus();
+      }
     }
   }
 
@@ -88,8 +111,9 @@ class _OtpScreenState extends State<OtpScreen> {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
-        // Chauffeurs → enregistrement véhicule en premier
-        builder: (_) => widget.isPassenger ? const PassengerHomeScreen() : const VehicleRegistrationScreen(),
+        builder: (_) => widget.isPassenger
+            ? const PassengerHomeScreen()
+            : const VehicleRegistrationScreen(),
       ),
       (route) => false,
     );
@@ -127,7 +151,7 @@ class _OtpScreenState extends State<OtpScreen> {
                     ),
                   ),
                   const Spacer(),
-                  Text('Vérification', style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textDark)),
+                  Text(loc.t('otp_title'), style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textDark)),
                   const Spacer(), const SizedBox(width: 44),
                 ],
               ),
@@ -145,12 +169,12 @@ class _OtpScreenState extends State<OtpScreen> {
                 child: const Icon(Icons.mark_email_read_outlined, color: Colors.white, size: 40),
               ),
               const SizedBox(height: 24),
-              Text('Vérifiez votre email', style: GoogleFonts.dmSans(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.textDark)),
+              Text(loc.t('otp_verify_title'), style: GoogleFonts.dmSans(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.textDark)),
               const SizedBox(height: 8),
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
-                  text: 'Nous avons envoyé un code à 6 chiffres à\n',
+                  text: '${loc.t('otp_sent_to')}\n',
                   style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textLight, height: 1.5),
                   children: [
                     TextSpan(
@@ -160,7 +184,29 @@ class _OtpScreenState extends State<OtpScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 8),
+              // Avertissement spam
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF8E1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFFD54F)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Color(0xFFF59E0B), size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        loc.t('check_spam'),
+                        style: GoogleFonts.dmSans(fontSize: 12, color: const Color(0xFF92400E)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: List.generate(6, (i) => _OtpBox(
@@ -182,6 +228,7 @@ class _OtpScreenState extends State<OtpScreen> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: AppColors.errorLight, borderRadius: BorderRadius.circular(12)),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Icon(Icons.error_outline, color: AppColors.error, size: 18),
                       const SizedBox(width: 8),
@@ -191,18 +238,30 @@ class _OtpScreenState extends State<OtpScreen> {
                 ),
               ],
               const SizedBox(height: 32),
-              KoogweButton(label: 'Vérifier', onPressed: _verify, loading: _loading),
+              KoogweButton(
+                label: loc.t('verify_btn'),
+                onPressed: _loading ? null : _verify,
+                loading: _loading,
+              ),
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Pas reçu le code ? ', style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textLight)),
+                  Text('${loc.t('otp_resend')} ? ', style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textLight)),
                   _countdown > 0
-                      ? Text('0:${_countdown.toString().padLeft(2, '0')}', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textLight))
-                      : GestureDetector(
-                          onTap: () => setState(() => _countdown = 59),
-                          child: Text('Renvoyer', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primary)),
-                        ),
+                      ? Text(
+                          '0:${_countdown.toString().padLeft(2, '0')}',
+                          style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textLight),
+                        )
+                      : _resending
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                          : GestureDetector(
+                              onTap: _resendCode,
+                              child: Text(
+                                loc.t('otp_resend'),
+                                style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primary),
+                              ),
+                            ),
                 ],
               ),
             ],

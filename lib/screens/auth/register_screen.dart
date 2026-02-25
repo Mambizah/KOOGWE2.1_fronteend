@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/koogwe_widgets.dart';
 import '../../services/api_service.dart';
+import '../../services/i18n_service.dart';
 import 'otp_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -44,16 +45,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
-    // ✅ FIX : Fermer le clavier AVANT toute validation pour éviter le crash ViewInsets
     FocusScope.of(context).unfocus();
 
     if (_nameCtrl.text.isEmpty || _emailCtrl.text.isEmpty ||
         _phoneCtrl.text.isEmpty || _passCtrl.text.isEmpty) {
-      setState(() => _error = 'Veuillez remplir tous les champs');
+      setState(() => _error = loc.t('fill_fields'));
       return;
     }
     if (_passCtrl.text.length < 6) {
-      setState(() => _error = 'Le mot de passe doit contenir au moins 6 caractères');
+      setState(() => _error = loc.t('password_min'));
       return;
     }
 
@@ -77,16 +77,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ));
     } on DioException catch (e) {
-      // ✅ DEBUG COMPLET : code HTTP + type Dio + message
       final statusCode = e.response?.statusCode ?? 0;
-      final dioType = e.type.name; // ex: connectionTimeout, unknown, connectionError
+      final dioType = e.type.name;
       final msg = e.response?.data?['message'] ??
                   e.response?.data?['error'] ??
                   e.message ??
-                  'Erreur réseau';
+                  loc.t('network_error');
       setState(() => _error = '[$statusCode] $dioType\n${msg is List ? msg.join(', ') : msg.toString()}');
     } catch (e) {
-      // ✅ DEBUG : Affiche l'erreur réelle
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -97,7 +95,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      // ✅ FIX : resizeToAvoidBottomInset false pour éviter le recalcul de viewInsets
       resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: _step == 0 ? _buildRoleStep() : _buildFormStep(),
@@ -125,31 +122,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
           const SizedBox(height: 32),
-          Text('Rejoindre KOOGWE', style: GoogleFonts.dmSans(
+          Text(loc.t('join_koogwe'), style: GoogleFonts.dmSans(
             fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.textDark,
           )),
           const SizedBox(height: 8),
-          Text('Vous êtes :', style: GoogleFonts.dmSans(
+          Text(loc.t('you_are'), style: GoogleFonts.dmSans(
             fontSize: 16, color: AppColors.textLight,
           )),
           const SizedBox(height: 24),
           _RoleCard(
             icon: Icons.person,
-            title: 'Passager',
-            desc: 'Réservez des courses premium',
+            title: loc.t('passenger'),
+            desc: loc.t('register_subtitle_passenger'),
             selected: widget.isPassenger,
             onTap: () => setState(() => _step = 1),
           ),
           const SizedBox(height: 12),
           _RoleCard(
             icon: Icons.directions_car,
-            title: 'Chauffeur',
-            desc: 'Conduisez et gagnez de l\'argent',
+            title: loc.t('driver'),
+            desc: loc.t('register_subtitle_driver'),
             selected: !widget.isPassenger,
             onTap: () => setState(() => _step = 1),
           ),
           const Spacer(),
-          KoogweButton(label: 'Continuer', onPressed: () => setState(() => _step = 1)),
+          KoogweButton(label: loc.t('continue'), onPressed: () => setState(() => _step = 1)),
           const SizedBox(height: 24),
         ],
       ),
@@ -161,8 +158,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       builder: (context, constraints) {
         return SingleChildScrollView(
           padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
+            left: 24, right: 24,
             bottom: MediaQuery.of(context).viewInsets.bottom,
           ),
           child: ConstrainedBox(
@@ -185,29 +181,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: 28),
-                  Text('Créer un compte', style: GoogleFonts.dmSans(
+                  Text(loc.t('signup_title'), style: GoogleFonts.dmSans(
                     fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.textDark,
                   )),
                   const SizedBox(height: 6),
                   Text(
                     widget.isPassenger
-                        ? 'Commencez à réserver vos courses'
-                        : 'Commencez à conduire et à gagner',
+                        ? loc.t('register_subtitle_passenger')
+                        : loc.t('register_subtitle_driver'),
                     style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textLight, height: 1.5),
                   ),
                   const SizedBox(height: 28),
 
                   KoogweInput(
-                    label: 'Nom complet',
-                    hint: 'ex. Juan Pérez',
+                    label: loc.t('full_name'),
+                    hint: loc.t('name_hint'),
                     prefixIcon: Icons.person_outline,
                     controller: _nameCtrl,
                   ),
                   const SizedBox(height: 16),
 
                   KoogweInput(
-                    label: 'Adresse email',
-                    hint: 'nom@exemple.com',
+                    label: loc.t('email'),
+                    hint: loc.t('email_hint'),
                     prefixIcon: Icons.mail_outline,
                     controller: _emailCtrl,
                     keyboardType: TextInputType.emailAddress,
@@ -218,7 +214,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Téléphone',
+                      Text(loc.t('phone'),
                         style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textDark)),
                       const SizedBox(height: 8),
                       Row(
@@ -249,7 +245,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               keyboardType: TextInputType.phone,
                               style: GoogleFonts.dmSans(fontSize: 15, color: AppColors.textDark),
                               decoration: InputDecoration(
-                                hintText: '06 12 34 56 78',
+                                hintText: '90 00 00 00',
                                 hintStyle: GoogleFonts.dmSans(color: AppColors.textHint),
                               ),
                             ),
@@ -261,14 +257,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 16),
 
                   KoogweInput(
-                    label: 'Mot de passe',
+                    label: loc.t('password'),
                     hint: '••••••••',
                     obscure: true,
                     prefixIcon: Icons.lock_outline,
                     controller: _passCtrl,
                   ),
 
-                  // ── Message d'erreur ──────────────────────────────────
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Container(
@@ -283,10 +278,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           const Icon(Icons.error_outline, color: AppColors.error, size: 18),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(
-                              _error!,
-                              style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.error),
-                            ),
+                            child: Text(_error!,
+                              style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.error)),
                           ),
                         ],
                       ),
@@ -296,7 +289,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const Spacer(),
 
                   KoogweButton(
-                    label: 'Créer mon compte',
+                    label: loc.t('register_btn'),
                     onPressed: _loading ? null : _register,
                     loading: _loading,
                   ),
@@ -323,7 +316,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Indicatif pays',
+            Text(loc.t('country_code_title'),
               style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textDark)),
             const SizedBox(height: 16),
             ..._countries.map((c) => ListTile(
