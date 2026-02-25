@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String _railwayUrl = 'https://web-production-5edc5.up.railway.app';
+  static const String _railwayUrl = 'https://koogwe21backend-production.up.railway.app';
 
   // ✅ FIX CRITIQUE : Toujours Railway, même en debug sur téléphone physique
   // L'ancienne condition kDebugMode envoyait vers 10.0.2.2:3000 (émulateur) → timeout
