@@ -12,21 +12,21 @@ class ApiService {
     return _railwayUrl;
   }
 
+  // ✅ FIX : Timeouts augmentés (Railway free tier peut mettre 30s+ au 1er réveil)
   static final Dio _dio = Dio(BaseOptions(
     baseUrl: baseUrl,
-    connectTimeout: const Duration(seconds: 15),
-    receiveTimeout: const Duration(seconds: 15),
+    connectTimeout: const Duration(seconds: 45),   // ← était 15
+    receiveTimeout: const Duration(seconds: 45),   // ← était 15
+    sendTimeout: const Duration(seconds: 45),      // ← nouveau
     headers: {'Content-Type': 'application/json'},
   ));
 
-  /// ✅ FIX BUG #1 : Callback appelé quand 401 → navigation vers login
   static VoidCallback? _onUnauthorized;
   static void setOnUnauthorized(VoidCallback cb) => _onUnauthorized = cb;
 
   static bool _initialized = false;
 
   static Future<void> init() async {
-    // ✅ FIX BUG #1 : Guard pour éviter double initialisation (interceptors doublés)
     if (_initialized) return;
     _initialized = true;
 
@@ -39,15 +39,19 @@ class ApiService {
     _dio.interceptors.add(InterceptorsWrapper(
       onError: (DioException e, handler) async {
         if (e.response?.statusCode == 401) {
-          // Vider le token ET rediriger vers login
           await AuthService.logout();
           _onUnauthorized?.call();
         }
         handler.next(e);
       },
       onRequest: (options, handler) {
-        if (kDebugMode) print('📡 ${options.method} ${options.uri}');
+        // ✅ Log aussi en release pour débugger
+        print('📡 ${options.method} ${options.uri}');
         handler.next(options);
+      },
+      onResponse: (response, handler) {
+        print('✅ ${response.statusCode} ${response.requestOptions.uri}');
+        handler.next(response);
       },
     ));
   }

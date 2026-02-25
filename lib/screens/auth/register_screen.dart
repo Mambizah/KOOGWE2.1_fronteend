@@ -77,14 +77,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ));
     } on DioException catch (e) {
-      // ✅ DEBUG : Affiche le code HTTP + le vrai message du backend
+      // ✅ DEBUG COMPLET : code HTTP + type Dio + message
       final statusCode = e.response?.statusCode ?? 0;
+      final dioType = e.type.name; // ex: connectionTimeout, unknown, connectionError
       final msg = e.response?.data?['message'] ??
                   e.response?.data?['error'] ??
-                  'Erreur lors de l\'inscription';
-      setState(() => _error = '[$statusCode] ${msg is List ? msg.join(', ') : msg.toString()}');
+                  e.message ??
+                  'Erreur réseau';
+      setState(() => _error = '[$statusCode] $dioType\n${msg is List ? msg.join(', ') : msg.toString()}');
     } catch (e) {
-      // ✅ DEBUG : Affiche l'erreur réelle au lieu de masquer
+      // ✅ DEBUG : Affiche l'erreur réelle
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -158,7 +160,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
-          // ✅ FIX : padding bas géré manuellement puisque resizeToAvoidBottomInset = false
           padding: EdgeInsets.only(
             left: 24,
             right: 24,
@@ -294,7 +295,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   const Spacer(),
 
-                  // ✅ FIX : onPressed bloqué si _loading pour éviter le double submit
                   KoogweButton(
                     label: 'Créer mon compte',
                     onPressed: _loading ? null : _register,
