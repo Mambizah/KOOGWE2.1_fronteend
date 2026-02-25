@@ -9,7 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/koogwe_widgets.dart';
 import '../../services/api_service.dart';
 import '../../services/i18n_service.dart';
-import 'driver_document_screen.dart';
+import 'vehicle_registration_screen.dart';
 
 class DriverFacialScreen extends StatefulWidget {
   const DriverFacialScreen({super.key});
@@ -105,19 +105,19 @@ class _DriverFacialScreenState extends State<DriverFacialScreen>
           backgroundColor: AppColors.success,
         ));
         await Future.delayed(const Duration(milliseconds: 800));
-        if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DriverDocumentScreen()));
+        if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const VehicleRegistrationScreen()));
       } else {
         _showError(result['message'] ?? 'Vérification échouée.');
       }
     } on DioException catch (e) {
       final status = e.response?.statusCode;
       if (status == 400 || status == 409) {
-        if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DriverDocumentScreen()));
+        if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const VehicleRegistrationScreen()));
         return;
       }
       _showError(e.response?.data?['message']?.toString() ?? 'Erreur de connexion');
     } catch (_) {
-      if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DriverDocumentScreen()));
+      if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const VehicleRegistrationScreen()));
     }
   }
 

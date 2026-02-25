@@ -4,7 +4,7 @@ import 'package:dio/dio.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/koogwe_widgets.dart';
 import '../../services/api_service.dart';
-import 'driver_facial_screen.dart';
+import 'driver_document_screen.dart';
 
 class VehicleRegistrationScreen extends StatefulWidget {
   const VehicleRegistrationScreen({super.key});
@@ -54,7 +54,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
           backgroundColor: AppColors.success,
         ));
         // Passer à la vérification faciale
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DriverFacialScreen()));
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DriverDocumentScreen()));
       }
     } on DioException catch (e) {
       final msg = e.response?.data?['message'] ?? 'Erreur d\'enregistrement';
@@ -180,7 +180,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               // Plaque
               KoogweInput(
                 label: 'Numéro d\'immatriculation',
-                hint: 'Ex: TG-1234-AB',
+                hint: 'Ex: GF-123-AB',
                 prefixIcon: Icons.confirmation_number_outlined,
                 controller: _plateCtrl,
                 validator: (v) => v == null || v.isEmpty ? 'Champ requis' : null,
@@ -211,7 +211,7 @@ class _VehicleRegistrationScreenState extends State<VehicleRegistrationScreen> {
               const SizedBox(height: 16),
               Center(
                 child: Text(
-                  'Étape 1/3 : Véhicule → Vérification faciale → Documents',
+                  'Étape 2/3 : Véhicule → Documents',
                   style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textHint),
                   textAlign: TextAlign.center,
                 ),
