@@ -3,11 +3,10 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
 class LocationService {
-  /// Position par défaut : Lomé, Togo
-  static const double defaultLat = 6.1375;
-  static const double defaultLng = 1.2125;
+  /// Pas de position par défaut — le GPS détermine la position
+  static const double defaultLat = 0.0;
+  static const double defaultLng = 0.0;
 
-  /// Obtenir la position GPS actuelle
   static Future<Position?> getCurrentPosition() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -29,7 +28,6 @@ class LocationService {
     }
   }
 
-  /// Geocoding inverse : coordonnées → adresse lisible
   static Future<String> reverseGeocode(double lat, double lng) async {
     try {
       final url = Uri.parse(
@@ -55,31 +53,45 @@ class LocationService {
     return 'Position actuelle';
   }
 
-  /// Recherche d'adresses par texte (Nominatim OpenStreetMap)
-  static Future<List<PlaceResult>> searchPlaces(String query) async {
+  /// Recherche d'adresses — adaptée à la position GPS de l'utilisateur
+  static Future<List<PlaceResult>> searchPlaces(String query, {double? nearLat, double? nearLng}) async {
     if (query.trim().length < 2) return [];
     try {
-      final encoded = Uri.encodeComponent('$query Lomé Togo');
-      final url = Uri.parse(
-        'https://nominatim.openstreetmap.org/search?q=$encoded&format=json&addressdetails=1&limit=5',
-      );
+      final encoded = Uri.encodeComponent(query);
+      
+      // Si on connaît la position de l'utilisateur → cherche près de lui (viewbox)
+      String urlStr;
+      if (nearLat != null && nearLng != null) {
+        // Zone de 2 degrés autour de l'utilisateur
+        final latMin = nearLat - 1.0;
+        final latMax = nearLat + 1.0;
+        final lngMin = nearLng - 1.0;
+        final lngMax = nearLng + 1.0;
+        urlStr = 'https://nominatim.openstreetmap.org/search?q=$encoded&format=json&addressdetails=1&limit=5&viewbox=$lngMin,$latMin,$lngMax,$latMax&bounded=0';
+      } else {
+        // Recherche globale sans restriction
+        urlStr = 'https://nominatim.openstreetmap.org/search?q=$encoded&format=json&addressdetails=1&limit=5';
+      }
+
+      final url = Uri.parse(urlStr);
       final res = await http.get(url, headers: {
         'User-Agent': 'KoogweApp/1.0 (contact@koogwe.com)',
         'Accept-Language': 'fr',
       });
       if (res.statusCode == 200) {
         final List<dynamic> data = json.decode(res.body);
-        return data.map((item) => PlaceResult(
-          displayName: _shortenAddress(item['display_name'] ?? ''),
-          lat: double.tryParse(item['lat'].toString()) ?? 0,
-          lng: double.tryParse(item['lon'].toString()) ?? 0,
-        )).toList();
+        if (data.isNotEmpty) {
+          return data.map((item) => PlaceResult(
+            displayName: _shortenAddress(item['display_name'] ?? ''),
+            lat: double.tryParse(item['lat'].toString()) ?? 0,
+            lng: double.tryParse(item['lon'].toString()) ?? 0,
+          )).toList();
+        }
       }
     } catch (_) {}
     return [];
   }
 
-  /// Calcul de distance en km via OSRM (gratuit, pas d'API key)
   static Future<double> getDistanceKm(
     double fromLat, double fromLng,
     double toLat, double toLng,
@@ -97,7 +109,6 @@ class LocationService {
         }
       }
     } catch (_) {}
-    // Calcul simple euclidien en fallback
     return _haversineKm(fromLat, fromLng, toLat, toLng);
   }
 
