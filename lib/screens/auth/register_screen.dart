@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/koogwe_widgets.dart';
 import '../../services/api_service.dart';
+import '../../services/socket_service.dart';
 import '../../services/i18n_service.dart';
-import 'otp_screen.dart';
+import '../passenger/home_screen.dart';
+import '../driver/vehicle_registration_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   final bool isPassenger;
@@ -21,7 +24,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
 
-  // ignore: unused_field
   String _selectedCountry = 'Togo';
   String _selectedDialCode = '+228';
   bool _loading = false;
@@ -60,7 +62,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() { _loading = true; _error = null; });
 
     try {
-      await AuthService.register(
+      final result = await AuthService.register(
         email: _emailCtrl.text.trim(),
         password: _passCtrl.text,
         name: _nameCtrl.text.trim(),
@@ -68,22 +70,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
         role: widget.isPassenger ? 'PASSENGER' : 'DRIVER',
       );
 
-      if (!mounted) return;
+      // ✅ Le backend retourne directement un token — sauvegarder et naviguer
+      if (result['access_token'] != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', result['access_token']);
+        ApiService.setToken(result['access_token']);
 
-      Navigator.push(context, MaterialPageRoute(
-        builder: (_) => OtpScreen(
-          email: _emailCtrl.text.trim(),
-          isPassenger: widget.isPassenger,
-        ),
-      ));
+        if (result['user'] != null) {
+          await AuthService.saveUserFromMap(result['user'] as Map<String, dynamic>);
+        }
+
+        await SocketService.connect();
+
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => widget.isPassenger
+                ? const PassengerHomeScreen()
+                : const VehicleRegistrationScreen(),
+          ),
+          (route) => false,
+        );
+      }
     } on DioException catch (e) {
       final statusCode = e.response?.statusCode ?? 0;
-      final dioType = e.type.name;
       final msg = e.response?.data?['message'] ??
                   e.response?.data?['error'] ??
                   e.message ??
                   loc.t('network_error');
-      setState(() => _error = '[$statusCode] $dioType\n${msg is List ? msg.join(', ') : msg.toString()}');
+      setState(() => _error = '[$statusCode] ${msg is List ? msg.join(', ') : msg.toString()}');
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -192,7 +208,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.textLight, height: 1.5),
                   ),
                   const SizedBox(height: 28),
-
                   KoogweInput(
                     label: loc.t('full_name'),
                     hint: loc.t('name_hint'),
@@ -200,7 +215,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _nameCtrl,
                   ),
                   const SizedBox(height: 16),
-
                   KoogweInput(
                     label: loc.t('email'),
                     hint: loc.t('email_hint'),
@@ -209,8 +223,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     keyboardType: TextInputType.emailAddress,
                   ),
                   const SizedBox(height: 16),
-
-                  // ── Indicatif + Téléphone ──────────────────────────────
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -255,7 +267,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-
                   KoogweInput(
                     label: loc.t('password'),
                     hint: '••••••••',
@@ -263,7 +274,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     prefixIcon: Icons.lock_outline,
                     controller: _passCtrl,
                   ),
-
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Container(
@@ -277,17 +287,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         children: [
                           const Icon(Icons.error_outline, color: AppColors.error, size: 18),
                           const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(_error!,
-                              style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.error)),
-                          ),
+                          Expanded(child: Text(_error!,
+                            style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.error))),
                         ],
                       ),
                     ),
                   ],
-
                   const Spacer(),
-
                   KoogweButton(
                     label: loc.t('register_btn'),
                     onPressed: _loading ? null : _register,
@@ -377,10 +383,8 @@ class _RoleCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                    style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textDark)),
-                  Text(desc,
-                    style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textLight)),
+                  Text(title, style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textDark)),
+                  Text(desc, style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textLight)),
                 ],
               ),
             ),
