@@ -37,16 +37,16 @@ class _ConfortScreenState extends State<ConfortScreen> {
   Timer? _searchDebounce;
 
   final List<_Vehicle> _vehicles = const [
-    _Vehicle(name: 'Moto', apiType: 'MOTO', basePrice: 500, eta: '3 min', seats: 1, desc: 'Rapide et économique'),
-    _Vehicle(name: 'Taxi', apiType: 'ECO', basePrice: 800, eta: '5 min', seats: 4, desc: 'Confortable et abordable'),
-    _Vehicle(name: 'Confort', apiType: 'CONFORT', basePrice: 1500, eta: '8 min', seats: 4, desc: 'Véhicule premium'),
+    _Vehicle(name: 'Moto', apiType: 'MOTO', basePrice: 3, eta: '3 min', seats: 1, desc: 'Rapide et économique'),
+    _Vehicle(name: 'Taxi', apiType: 'ECO', basePrice: 5, eta: '5 min', seats: 4, desc: 'Confortable et abordable'),
+    _Vehicle(name: 'Confort', apiType: 'CONFORT', basePrice: 10, eta: '8 min', seats: 4, desc: 'Véhicule premium'),
   ];
 
   // ✅ Options avec prix individuels clairement définis
   final List<_ComfortOption> _options = const [
-    _ComfortOption(id: 'Clim', icon: Icons.ac_unit, label: 'Clim', price: 500),
-    _ComfortOption(id: 'WiFi', icon: Icons.wifi, label: 'Wi-Fi', price: 300),
-    _ComfortOption(id: 'Musique', icon: Icons.music_note, label: 'Musique', price: 200),
+    _ComfortOption(id: 'Clim', icon: Icons.ac_unit, label: 'Clim', price: 2),
+    _ComfortOption(id: 'WiFi', icon: Icons.wifi, label: 'Wi-Fi', price: 1),
+    _ComfortOption(id: 'Musique', icon: Icons.music_note, label: 'Musique', price: 1),
     _ComfortOption(id: 'Silence', icon: Icons.volume_off, label: 'Silencieux', price: 0),
   ];
 
@@ -78,7 +78,7 @@ class _ConfortScreenState extends State<ConfortScreen> {
       _originLat = LocationService.defaultLat;
       _originLng = LocationService.defaultLng;
       if (mounted) setState(() {
-        _originAddress = 'Lomé, Togo (GPS indisponible)';
+        _originAddress = 'Activez le GPS pour obtenir votre position';
         _gpsLoading = false;
       });
     }
@@ -112,11 +112,11 @@ class _ConfortScreenState extends State<ConfortScreen> {
     if (mounted) setState(() {});
   }
 
-  // ✅ FIX PRIX : 1km = 100 FCFA + options individuelles
+  // ✅ PRIX : 1km = 0.50€ + options individuelles
   // Clim = +500 | WiFi = +300 | Musique = +200 | Silence = gratuit
   double get _totalPrice {
     final base = _vehicles[_selectedVehicle].basePrice.toDouble();
-    final kmPrice = _distanceKm * 100; // ← 1 km = 100 FCFA
+    final kmPrice = _distanceKm * 0.5; // 1 km = 0.50 €
     double optionsPrice = 0;
     for (final opt in _options) {
       if (_selectedOptions.contains(opt.id)) {
@@ -305,7 +305,7 @@ class _ConfortScreenState extends State<ConfortScreen> {
                           const Icon(Icons.straighten, size: 14, color: AppColors.success),
                           const SizedBox(width: 6),
                           Text(
-                            '${_distanceKm.toStringAsFixed(1)} km × 100 FCFA = ${(_distanceKm * 100).toStringAsFixed(0)} FCFA',
+                            '${_distanceKm.toStringAsFixed(1)} km × 0,50€ = ${(_distanceKm * 0.5).toStringAsFixed(2)} €',
                             style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.success, fontWeight: FontWeight.w500),
                           ),
                         ],
@@ -344,7 +344,7 @@ class _ConfortScreenState extends State<ConfortScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(8)),
                           child: Text(
-                            '+${_options.where((o) => _selectedOptions.contains(o.id)).fold(0, (s, o) => s + o.price)} FCFA',
+                            '+${_options.where((o) => _selectedOptions.contains(o.id)).fold(0, (s, o) => s + o.price).toStringAsFixed(2)} €',
                             style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600),
                           ),
                         ),
@@ -409,11 +409,11 @@ class _ConfortScreenState extends State<ConfortScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('TOTAL ESTIMÉ', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.textLight, letterSpacing: 0.8)),
-                          Text('${_totalPrice.toStringAsFixed(0)} FCFA', style: GoogleFonts.dmSans(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textDark)),
+                          Text('${_totalPrice.toStringAsFixed(2)} €', style: GoogleFonts.dmSans(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textDark)),
                           // ✅ Détail du prix en petit
                           if (_distanceKm > 0)
                             Text(
-                              'Base ${_vehicles[_selectedVehicle].basePrice} + ${(_distanceKm * 100).toStringAsFixed(0)} km',
+                              'Base ${_vehicles[_selectedVehicle].basePrice}€ + ${(_distanceKm * 0.5).toStringAsFixed(2)}€',
                               style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.textLight),
                             ),
                         ],
@@ -490,7 +490,7 @@ class _VehicleCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('${vehicle.basePrice} FCFA', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                Text('${vehicle.basePrice} €', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary)),
                 Row(children: [
                   const Icon(Icons.person, size: 12, color: AppColors.textLight),
                   Text(' ${vehicle.seats}', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.textLight)),
@@ -536,7 +536,7 @@ class _ComfortCard extends StatelessWidget {
             // ✅ Afficher le prix de l'option
             if (option.price > 0)
               Text(
-                '+${option.price} FCFA',
+                '+${option.price} €',
                 style: GoogleFonts.dmSans(fontSize: 11, color: selected ? AppColors.primary : AppColors.textLight),
               ),
           ],
